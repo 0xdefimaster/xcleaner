@@ -20,12 +20,12 @@ def test_start_rejects_foreign_origin():
 
 
 def test_start_validates_input():
-    r = client.post("/start", data={"username": "bad name!", "browser_path": "/bin/sh"})
+    r = client.post("/start", data={"username": "bad name!", "browser_path": sys.executable})
     assert r.status_code == 400
 
 
 def test_start_accepts_valid_config():
-    r = client.post("/start", data={"username": "abc", "browser_path": "/bin/sh", "dry_run": "true"})
+    r = client.post("/start", data={"username": "abc", "browser_path": sys.executable, "dry_run": "true"})
     assert r.status_code == 200 and "job_id" in r.json()
 
 
