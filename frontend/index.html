@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XCleaner</title>
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --border:#1e1e1e; --accent:#e8ff47; --text:#f0f0f0; --muted:#7a7a7a; --green:#28c840; --red:#ff4747; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+         min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .wrap { width:100%; max-width:520px; }
+  .logo { font-size:26px; font-weight:800; margin-bottom:4px; font-family:system-ui,sans-serif; }
+  .logo span { color:var(--accent); }
+  .sub { color:var(--muted); font-size:11px; letter-spacing:.15em; margin-bottom:24px; }
+  .card { background:var(--surface); border:1px solid var(--border); padding:24px; margin-bottom:15px; }
+  .warn { font-size:11px; color:var(--red); margin-bottom:18px; line-height:1.5; }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:10px; letter-spacing:.12em; color:var(--muted); margin-bottom:6px; }
+  .field input[type=text], .field input[type=number] { width:100%; background:var(--bg); border:1px solid var(--border);
+         color:var(--text); padding:10px 12px; font:inherit; font-size:12px; outline:none; }
+  .field input:focus { border-color:var(--accent); }
+  .field select { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:10px 12px; font:inherit; font-size:12px; }
+  .check { display:flex; gap:8px; align-items:center; font-size:12px; margin:6px 0 18px; }
+  details { margin-bottom:16px; font-size:12px; }
+  summary { cursor:pointer; color:var(--muted); margin-bottom:12px; }
+  .btn { width:100%; padding:14px; background:var(--accent); color:#000; border:none; font:inherit; font-weight:700; cursor:pointer; }
+  .btn:hover { opacity:.85 }
+  .btn.stop { background:var(--red); color:#fff; margin-top:10px; }
+  #run { display:none; }
+  .terminal { background:#0d0d0d; border:1px solid var(--border); }
+  .t-body { padding:15px; height:220px; overflow-y:auto; font-size:11px; line-height:1.6; }
+  .li{color:var(--muted)} .le{color:var(--red)} .ls{color:var(--green)}
+  .counter { text-align:center; padding:15px; border:1px solid var(--border); margin-top:10px; }
+  .c-num { font-size:48px; font-weight:800; color:var(--accent); font-family:system-ui,sans-serif; }
+  .c-lbl { font-size:10px; color:var(--muted); letter-spacing:.12em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">X<span>Cleaner</span></div>
+  <div class="sub">// KENDİ GÖNDERİLERİNİ TOPLU SİL</div>
+
+  <div id="setup" class="card">
+    <p class="warn">Silinen gönderiler geri alınamaz. İlk seferde “Deneme modu” açık kalsın.
+      Aynı profili kullanan bir tarayıcı penceresi açıksa önce kapat.</p>
+
+    <div class="field">
+      <label for="uname">X KULLANICI ADIN VEYA PROFİL LİNKİ</label>
+      <input type="text" id="uname" placeholder="kullanici_adi ya da https://x.com/kullanici_adi" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="browserSel">HANGİ TARAYICI? (X'e bu tarayıcıda giriş yapacaksın)</label>
+      <select id="browserSel">
+        <option value="">Otomatik (varsayılan tarayıcım)</option>
+        <option value="brave">Brave</option>
+        <option value="chrome">Chrome</option>
+        <option value="edge">Edge</option>
+        <option value="chromium">Chromium</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="exePath">ÖZEL TARAYICI YOLU (opsiyonel, seçimi geçersiz kılar)</label>
+      <input type="text" id="exePath" placeholder="C:\Program Files\BraveSoftware\...\brave.exe">
+    </div>
+    <div class="field">
+      <label for="dataPath">PROFİL KLASÖRÜ (boş bırakman önerilir)</label>
+      <input type="text" id="dataPath" placeholder="boş bırak">
+    </div>
+
+    <details>
+      <summary>Gelişmiş</summary>
+      <div class="field">
+        <label for="maxDel">EN FAZLA KAÇ GÖNDERİ (0 = sınırsız)</label>
+        <input type="number" id="maxDel" value="0" min="0">
+      </div>
+      <div class="field">
+        <label for="attach">AÇIK TARAYICIYA BAĞLAN (host:port, opsiyonel)</label>
+        <input type="text" id="attach" placeholder="127.0.0.1:9222">
+      </div>
+    </details>
+
+    <label class="check"><input type="checkbox" id="dry" checked> Deneme modu (hiçbir şey silme, sadece say)</label>
+    <button class="btn" id="startBtn">Başlat →</button>
+  </div>
+
+  <div id="run">
+    <div class="terminal"><div class="t-body" id="tBody"></div></div>
+    <div class="counter">
+      <div class="c-num" id="cNum">0</div>
+      <div class="c-lbl" id="cLbl">SİLİNDİ</div>
+    </div>
+    <button class="btn stop" id="stopBtn">Durdur</button>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let jobId = null;
+
+  function addLog(msg, status) {
+    const d = document.createElement('div');
+    d.className = status === 'error' ? 'le' : (status === 'success' ? 'ls' : 'li');
+    d.textContent = '> ' + msg;
+    $('tBody').appendChild(d);
+    $('tBody').scrollTop = $('tBody').scrollHeight;
+  }
+
+  $('startBtn').onclick = async () => {
+    const dry = $('dry').checked;
+    const user = $('uname').value.trim();
+    if (!user) return alert('Kullanıcı adı ya da profil linki gerekli.');
+    const shown = (user.match(/(?:x|twitter)\.com\/([^\/?#\s]+)/i) || [0, user.replace(/^@/, '')])[1];
+    if (!dry && !confirm('@' + shown + ' hesabındaki gönderiler kalıcı olarak silinecek. Devam edilsin mi?')) return;
+
+    const fd = new FormData();
+    fd.append('username', user);
+    fd.append('browser_path', $('exePath').value.trim() || $('browserSel').value);
+    fd.append('profile_dir', $('dataPath').value.trim());
+    fd.append('attach', $('attach').value.trim());
+    fd.append('max_delete', $('maxDel').value || '0');
+    fd.append('dry_run', dry ? 'true' : 'false');
+
+    let resp;
+    try { resp = await fetch('/start', { method: 'POST', body: fd }); }
+    catch { return alert('Sunucuya bağlanılamadı.'); }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      return alert(err.detail || 'İşlem başlatılamadı.');
+    }
+    jobId = (await resp.json()).job_id;
+
+    $('setup').style.display = 'none';
+    $('run').style.display = 'block';
+    $('cLbl').textContent = dry ? 'SİLİNEBİLİR' : 'SİLİNDİ';
+
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/ws/${jobId}`);
+    ws.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      if (d.type === 'log') addLog(d.msg, d.status);
+      if (d.type === 'count') $('cNum').textContent = d.total;
+      if (d.type === 'done') { $('stopBtn').textContent = 'Yeniden başla'; $('stopBtn').onclick = () => location.reload(); }
+    };
+    ws.onclose = () => addLog('Bağlantı kapandı.', 'info');
+  };
+
+  $('stopBtn').onclick = () => {
+    if (jobId) fetch('/stop/' + jobId, { method: 'POST' });
+    addLog('Durdurma isteği gönderildi...', 'info');
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, asset: XCleaner-windows.exe, src: dist/XCleaner.exe }
+          - { os: macos-latest,   asset: XCleaner-macos,       src: dist/XCleaner }
+          - { os: ubuntu-latest,  asset: XCleaner-linux,       src: dist/XCleaner }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt pyinstaller pytest httpx
+      - run: pytest -q
+      - run: pyinstaller -y --clean xcleaner.spec
+      - name: Adlandır
+        shell: bash
+        run: cp "${{ matrix.src }}" "${{ matrix.asset }}"
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ matrix.asset }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
